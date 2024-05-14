@@ -2,10 +2,11 @@ from typing import *
 from sqlite3 import *
 import json
 import datetime
-from ._utils import *
 from ._TempStringManager import *
+from ._EmailHost import *
+from ._Config import *
 
-class VIAccountMetaManager:
+class PRTSAccountMetaManager:
     """
     # AccountMetaManager
     ## Table - User Meta
@@ -17,11 +18,13 @@ class VIAccountMetaManager:
     DataBase: Connection
     DBCursor: Cursor
     DataBasePath: str
-
-    def __init__(this, DataBasePath: str = "./db/account.db"):
-        PRTS.AccountManager = this
-        this.DataBasePath = DataBasePath
-        this.DataBase = connect(DataBasePath, isolation_level=None, check_same_thread=False)
+    TempStringManager: PRTSTempStringManager
+    EmailHost: PRTSEmailHost
+    def __init__(this, tempStringManager:PRTSTempStringManager, emailHost:PRTSEmailHost):
+        this.TempStringManager = tempStringManager
+        this.EmailHost = emailHost
+        this.DataBasePath = PRTSConfig.Instance["DataBase"]["FileFolder"] + "/prts_account.db"
+        this.DataBase = connect(this.DataBasePath, isolation_level=None, check_same_thread=False)
         dbCursor = this.DataBase.cursor()
         dbCursor.execute("CREATE TABLE IF NOT EXISTS usermeta (username TEXT, password TEXT, \
 nickname TEXT, email TEXT, registed_time TEXT, data TEXT)")
@@ -37,14 +40,14 @@ nickname TEXT, email TEXT, registed_time TEXT, data TEXT)")
         return dbCursor.fetchone() != None
     
     def sendVerifyCode(this, username:str, email:str)->StateCode:
-        code, vcode = PRTS.TempStringManager.getVerifyCode(username)
+        code, vcode = this.TempStringManager.getVerifyCode(username)
         if code != StateCode.Success:
             return code
-        PRTS.EmailHost.sendEmail(email, PRTS.EmailVerifyCodeSubTitle, 
-                                    PRTS.EmailVerifyCodeTemplate.format(
+        this.EmailHost.sendEmail(email, PRTSConfig.Instance["EmailHost"]["VerifyCodeSubTitle"],
+                                    PRTSConfig.Instance["EmailHost"]["VerifyCodeTemplate"].format(
                                         username=username, code=vcode,
                                         create_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                        expire_time="5"
+                                        expire_time=PRTSConfig.Instance["VerifyCodeExpireTime"]/60
                                     )
                                 )
         return StateCode.Success
@@ -63,17 +66,17 @@ nickname TEXT, email TEXT, registed_time TEXT, data TEXT)")
             return StateCode.UsernameAlreadyExists
         if this.checkEMailBinded(email):
             return StateCode.EmailAlreadyExists
-        if len(username) < 6 or len(username) > 32:
-            return StateCode.UsernameInvalid
-        if len(password) < 6 or len(password) > 16:
-            return StateCode.PasswordInvalid
-        code:StateCode = PRTS.TempStringManager.checkVerifyCode(username, verifyCode)
+        if len(username) < PRTSConfig.Instance["AccountManager"]["AccountLength"]["Min"] or \
+            len(username) > PRTSConfig.Instance["AccountManager"]["AccountLength"]["Max"]:
+                return StateCode.UsernameInvalid
+        if len(password) < PRTSConfig.Instance["AccountManager"]["PasswordLength"]["Min"] or \
+            len(password) > PRTSConfig.Instance["AccountManager"]["PasswordLength"]["Max"]:
+                return StateCode.PasswordInvalid
+        code:StateCode = this.TempStringManager.checkVerifyCode(username, verifyCode)
         if code != StateCode.Success:
             return code
         dbCursor = this.DataBase.cursor()
-        templatefile = open("./template.json", "r", encoding="utf-8")
-        template = templatefile.read()
-        templatefile.close()
+        template = PRTSConfig.Instance["AccountManager"]["TemplateMetaJson"]
         dbCursor.execute("INSERT INTO usermeta VALUES (?, ?, ?, ?, ?, ?)", (username, password, nickname, email, str(time.time()), template))
         return StateCode.Success
 
@@ -86,7 +89,7 @@ nickname TEXT, email TEXT, registed_time TEXT, data TEXT)")
         result = dbCursor.fetchone()
         if result == None or result[0] != password:
             return StateCode.UsernameOrPasswordNotMatch, ""
-        token:str = PRTS.TempStringManager.getToken(username)
+        token:str = this.TempStringManager.getToken(username)
         return StateCode.Success, token
     
     def getMetaExpand(this, username:str)->Tuple[StateCode, dict]:

@@ -1,0 +1,42 @@
+# PRTS Configuration File
+DataBase:
+    FileFolder: "./db"
+AccountManager:
+    TemplateMetaJson: |
+        {
+            "AccountInfo":{
+                "TEL": "",
+                "TELPrefix": "",
+                "Gender": "",
+                "Brief": ""
+            },
+            "Privacy":{
+                "Name": "",
+                "ID": ""
+            },
+        }
+    AccountLength:
+        Min: 6
+        Max: 32
+    PasswordLength:
+        Min: 6
+        Max: 16
+    VerifyCodeLength: 6
+    VerifyCodeExpireTime: 600 # seconds (10 minutes)
+    TokenLength: 32
+    TokenExpireTime: 604800 # seconds (7 days)
+    
+EmailHost:
+    HostAddress: ""
+    HostPort: 465
+    Account: ""
+    Password: ""
+    Title: "PRTS"
+    VerifyCodeSubTitle: "Verify Code"
+    VerifyCodeTemplate: |
+        尊敬的用户{username}，您好！
+        您于 {create_time} 申请的验证码是：{code}，请在{expire_time}分钟内完成验证。
+
+ProductKey:
+    Part: 4
+    Length: 5 # xxxxx-xxxxx-xxxxx-xxxxx

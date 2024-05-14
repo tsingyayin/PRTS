@@ -1,9 +1,14 @@
 from typing import *
 from sqlite3 import *
-from ._utils import *
+from ._Utils import *
+from ._Config import *
 import time
 
-class VITempStringManager:
+class ProductKeyTODOHandler:
+    def handler(this, key:str, username:str, todo:str, count:int, ttl:int, spawn_time:int)->bool:
+        pass
+
+class PRTSTempStringManager:
     """
     # verifycode
     | username | code | ttl | spawn_time |
@@ -13,6 +18,10 @@ class VITempStringManager:
     | username | token | ttl | spawn_time |
     | -------- | ----- | --- | ---------- |
     | Text     | Text  | Int | Int        |
+    # productKey
+    | key | todo | count | ttl | spawn_time |
+    | --- | ---- | ----- | --- | ---------- |
+    | Text| Text | Int   | Int | Int        |
     # permission_group
     | groupname | permission | ttl |
     | --------- | ---------- | --- |
@@ -25,25 +34,40 @@ class VITempStringManager:
     DataBasePath: str
     DataBase: Connection
     DBCursor: Cursor
-    def __init__(this, DataBasePath: str = "./db/temporary.db"):
-        PRTS.TempStringManager = this
-        this.DataBasePath = DataBasePath
-        this.DataBase = connect(DataBasePath, isolation_level=None, check_same_thread=False)
+    ProductKeyTodo: ProductKeyTODOHandler
+    def __init__(this):
+        this.DataBasePath = PRTSConfig.Instance["DataBase"]["FileFolder"] + "/prts_tempstring.db"
+        this.DataBase = connect(this.DataBasePath, isolation_level=None, check_same_thread=False)
         this.DataBase.execute("CREATE TABLE IF NOT EXISTS verifycode \
 (username TEXT, code TEXT, ttl INTEGER, spawn_time INTEGER)")
         this.DataBase.execute("CREATE TABLE IF NOT EXISTS token \
 (username TEXT, token TEXT, ttl INTEGER, spawn_time INTEGER)")
+        this.DataBase.execute("CREATE TABLE IF NOT EXISTS productKey \
+(key TEXT, todo TEXT, count INTEGER, ttl INTEGER, spawn_time INTEGER)")
+        this.DataBase.execute("CREATE TABLE IF NOT EXISTS permission_group \
+(groupname TEXT, permission Text, ttl INTEGER)")
         this.DataBase.execute("CREATE TABLE IF NOT EXISTS permission \
 (username TEXT, permission Text, ttl INTEGER, spawn_time INTEGER)")
+        this.ProductKeyTodo = ProductKeyTODOHandler()
     
+    def clearExipred(this):
+        dbCursor = this.DataBase.cursor()
+        dbCursor.execute("DELETE FROM verifycode WHERE spawn_time + ttl < ?", (time.time(),))
+        dbCursor.execute("DELETE FROM token WHERE spawn_time + ttl < ?", (time.time(),))
+        dbCursor.execute("DELETE FROM productKey WHERE spawn_time + ttl < ?", (time.time(),))
+        dbCursor.execute("DELETE FROM permission WHERE spawn_time + ttl < ?", (time.time(),))
+
     def getVerifyCode(this, username:str)->Tuple[StateCode, str]:
         dbCursor = this.DataBase.cursor()
         dbCursor.execute("SELECT code, ttl, spawn_time FROM verifycode WHERE username=?", (username,))
         result = dbCursor.fetchone()
         if result != None:
             dbCursor.execute("DELETE FROM verifycode WHERE username=?", (username,))
-        VCode:str = PRTS.getRandomStr(8)
-        dbCursor.execute("INSERT INTO verifycode VALUES (?, ?, ?, ?)", (username, VCode, 600, time.time()))
+        VCode:str = PRTSUtils.getRandomStr(PRTSConfig.Instance["AccountManager"]["VerifyCodeLength"])
+        dbCursor.execute("INSERT INTO verifycode VALUES (?, ?, ?, ?)", (username, VCode, 
+                PRTSConfig.Instance["AccountManager"]["VerifyCodeExpireTime"], 
+                time.time())
+            )
         return StateCode.Success, VCode
     
     def checkVerifyCode(this, username:str, verifyCode:str)->(StateCode):
@@ -64,11 +88,21 @@ class VITempStringManager:
     def getToken(this, username:str)->(str):
         dbCursor = this.DataBase.cursor()
         dbCursor.execute("DELETE FROM token WHERE username=?", (username,))
-        Token:str = PRTS.getRandomStr(32)
-        dbCursor.execute("INSERT INTO token VALUES (?, ?, ?, ?)", (username, Token, 604800, time.time()))
+        Token:str = PRTSUtils.getRandomStr(PRTSConfig.Instance["AccountManager"]["TokenLength"])
+        dbCursor.execute("INSERT INTO token VALUES (?, ?, ?, ?)", (username, Token, 
+                PRTSConfig.Instance["AccountManager"]["TokenExpireTime"],
+                time.time())
+            )
         return Token
     
     def checkToken(this, username:str, token:str)->Tuple[StateCode, str]:
+        """
+        # checkToken
+        This function is designed for refreshing the token when the token is not expired.
+        If the token is expired, the function will return `StateCode.TokenExpired`.
+        If you want to refresh the spawn_time of the token instead of generating a new token, 
+        please use `tokenAuth`.
+        """
         dbCursor = this.DataBase.cursor()
         dbCursor.execute("SELECT token, ttl, spawn_time FROM token WHERE username=?", (username,))
         result = dbCursor.fetchone()
@@ -82,11 +116,21 @@ class VITempStringManager:
             if result[0] != token:
                 return StateCode.TokenExpired, ""
             dbCursor.execute("DELETE FROM token WHERE username=?", (username,))
-        Token:str = PRTS.getRandomStr(32)
-        dbCursor.execute("INSERT INTO token VALUES (?, ?, ?, ?)", (username, Token, 604800, time.time()))
+        Token:str = PRTSUtils.getRandomStr(PRTSConfig.Instance["AccountManager"]["TokenLength"])
+        dbCursor.execute("INSERT INTO token VALUES (?, ?, ?, ?)", (username, Token, 
+                PRTSConfig.Instance["AccountManager"]["TokenExpireTime"],
+                time.time())
+            )
         return StateCode.Success, Token
     
     def tokenAuth(this, username:str, token:str)->(StateCode):
+        """
+        # tokenAuth
+        This function is designed for refreshing the spawn_time of the token.
+        If the token is expired, the function will return `StateCode.TokenExpired`.
+        If you want to generate a new token instead of refreshing the spawn_time of the token,
+        please use `checkToken`.
+        """
         dbCursor = this.DataBase.cursor()
         dbCursor.execute("SELECT token, ttl, spawn_time FROM token WHERE username=?", (username,))
         result = dbCursor.fetchone()
@@ -100,33 +144,34 @@ class VITempStringManager:
             dbCursor.execute("UPDATE token SET spawn_time=? WHERE username=?", (time.time(), username))
             return StateCode.Success
         
-    def clearExipred(this):
-        dbCursor = this.DataBase.cursor()
-        dbCursor.execute("DELETE FROM verifycode WHERE spawn_time + ttl < ?", (time.time(),))
-        dbCursor.execute("DELETE FROM token WHERE spawn_time + ttl < ?", (time.time(),))
-
-    def refreshLastSubmit(this, username:str):
-        dbCursor = this.DataBase.cursor()
-        dbCursor.execute("SELECT last_submit FROM urrs_last_submit WHERE username=?", (username,))
-        result = dbCursor.fetchone()
-        if result == None:
-            dbCursor.execute("INSERT INTO urrs_last_submit VALUES (?, ?)", (username, time.time()))
-        else:
-            dbCursor.execute("UPDATE urrs_last_submit SET last_submit=? WHERE username=?", (time.time(), username))
-
-    def getLastSubmit(this, username:str)->int:
-        dbCursor = this.DataBase.cursor()
-        dbCursor.execute("SELECT last_submit FROM urrs_last_submit WHERE username=?", (username,))
-        result = dbCursor.fetchone()
-        if result == None:
-            return 0
-        return result[0]
     
-    def isUserSubmitTooFast(this, username:str)->bool:
-        last_submit = this.getLastSubmit(username)
-        if last_submit + 10 > time.time():
-            return True
-        return False
+    def generateProductKey(this, todo:str, count:int, ttl:int)->str:
+        dbCursor = this.DataBase.cursor()
+        len = PRTSConfig.Instance["ProductKey"]["Length"]
+        part = PRTSConfig.Instance["ProductKey"]["Part"]
+        ProductKey:str = PRTSUtils.getRandomStr(len*part)
+        # every 5 char insert a "-"
+        ProductKey = "-".join([ProductKey[i:i+len] for i in range(0, len(ProductKey), len)])
+        dbCursor.execute("INSERT INTO productKey VALUES (?, ?, ?, ?, ?)", (ProductKey, todo, count, ttl, time.time()))
+        return ProductKey
+    
+    def checkProductKey(this, key:str, username:str)->StateCode:
+        dbCursor = this.DataBase.cursor()
+        dbCursor.execute("SELECT todo, count, ttl, spawn_time FROM productKey WHERE key=?", (key,))
+        result = dbCursor.fetchone()
+        if result == None:
+            return StateCode.UnknownError
+        if result[1] <= 0:
+            dbCursor.execute("DELETE FROM productKey WHERE key=?", (key,))
+            return StateCode.UnknownError
+        if result[3] + result[2] < time.time():
+            dbCursor.execute("DELETE FROM productKey WHERE key=?", (key,))
+            return StateCode.UnknownError
+        if this.ProductKeyTodo.handler(key, username, result[0], result[1], result[2], result[3]):
+            dbCursor.execute("UPDATE productKey SET count=count-1 WHERE key=?", (key,))
+            return StateCode.Success
+        return StateCode.UnknownError
+
     
     def addPermissionForGroup(this, groupname:str, permission:str, ttl:int)->StateCode:
         dbCursor = this.DataBase.cursor()
