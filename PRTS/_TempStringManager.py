@@ -35,7 +35,10 @@ class PRTSTempStringManager:
     DataBase: Connection
     DBCursor: Cursor
     ProductKeyTodo: ProductKeyTODOHandler
+    Instance = None
     def __init__(this):
+        if PRTSTempStringManager.Instance != None:
+            raise Exception("PRTSTempStringManager is a singleton class.")
         this.DataBasePath = PRTSConfig.Instance["DataBase"]["FileFolder"] + "/prts_tempstring.db"
         this.DataBase = connect(this.DataBasePath, isolation_level=None, check_same_thread=False)
         this.DataBase.execute("CREATE TABLE IF NOT EXISTS verifycode \
@@ -49,6 +52,7 @@ class PRTSTempStringManager:
         this.DataBase.execute("CREATE TABLE IF NOT EXISTS permission \
 (username TEXT, permission Text, ttl INTEGER, spawn_time INTEGER)")
         this.ProductKeyTodo = ProductKeyTODOHandler()
+        PRTSTempStringManager.Instance = this
     
     def clearExipred(this):
         dbCursor = this.DataBase.cursor()
