@@ -1,9 +1,10 @@
 from smtplib import *
 from email import *
 from email.mime.text import MIMEText
+from ._AccountManager import *
 from ._Utils import *
 from ._Config import *
-class PRTSEmailHost:
+class PRTSEmailHost(PRTSVerifyCodeSender):
     Client: SMTP_SSL
     Enable: bool = False
     def __init__(this):
@@ -23,6 +24,19 @@ class PRTSEmailHost:
         except:
             status = -1
         return True if status == 250 else False
+    
+    @override
+    def onVerifyCode(this, username:str, email:str, accountInfo:dict, verifyCode:str)->StateCode:
+        if not this.Enable:
+            return StateCode.UnknownError
+        this.sendEmail(email, PRTSConfig.Instance["EmailHost"]["VerifyCodeSubTitle"],
+                                PRTSConfig.Instance["EmailHost"]["VerifyCodeTemplate"].format(
+                                    username=username, code=verifyCode,
+                                    create_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    expire_time=PRTSConfig.Instance["VerifyCodeExpireTime"]/60
+                                )
+                            )
+        return StateCode.Success
     
     def sendEmail(this, toAddr: str, subject: str, content: str):
         if not this.Enable:

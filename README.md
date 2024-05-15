@@ -14,6 +14,7 @@ PRTS uses the built-in sqlite3 module of Python to operate the database, and the
 # Features
 - Role (User) Management
   - Basic registration, login, etc.
+  - **Password supports hash encrypted storage with salt added**
   - STMP email binding
   - User nickname setting, etc.
   - Other user information that can be freely configured
@@ -33,7 +34,20 @@ PRTS uses the built-in sqlite3 module of Python to operate the database, and the
   - Can specify the schedule time in a more complex way with wildcards
   - Built-in a schedule `PRTSClearExpiredSchedule` that cleans the database every 10 minutes
   - Built-in a server guardian as an example, which sends a request to a specific URL every minute `PRTSServerGuardian`
-  - **It is worth noting that the internal of the regular schedule facility uses multi-threading, so you need to pay attention to thread safety issues when using it**
+  - **It is worth noting that the internal of the regular schedule facility uses multi-threading, so you need to pay attention to thread safety issues when using it. Please refer to the document for details.**
+
+# Installation & Usage
+Clone this repository or just download the code, then copy the `PRTS` folder to your project directory.
+
+To use PRTS, you just need to import the `PRTS` module in your Python code:
+```python
+from PRTS import *
+
+PRTS()
+```
+We recommend that do not use any variable to store the return value of `PRTS()`, because the `PRTS` class is a singleton class, just use `PRTS.Instance` to access the instance of `PRTS`.
+
+For more details, please refer to the [document](doc/README.md).
 
 # ProductKey TODO
 The ProductKey management system of PRTS can be used to activate software, and in order to facilitate the activation of different products according to different keys (anyway, just execute different operations as needed), the key management system of PRTS will carry a TODO information in each key, the content of which is any string, and different operations can be performed according to the TODO information during activation.

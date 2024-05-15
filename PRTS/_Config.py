@@ -34,6 +34,7 @@ AccountManager:
         # We recommend using SHA256 or SHA512, but PLAIN is more convenient for debugging.
         Storage: "PLAIN"
         HashModeSaltLength: 16
+    EmailBindLimit: 1 # any value less than 1 means no limit. not recommended.
     VerifyCodeLength: 6
     VerifyCodeExpireTime: 600 # seconds (10 minutes)
     TokenLength: 32

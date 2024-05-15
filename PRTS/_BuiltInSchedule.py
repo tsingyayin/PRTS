@@ -1,7 +1,7 @@
 from ._Schedule import *
 from ._TempStringManager import *
 from requests import *
-from colorama import *
+
 class test_schedu(PRTSSchedule):
     def __init__(this):
         super().__init__()
@@ -12,6 +12,7 @@ class test_schedu(PRTSSchedule):
         Which means this schedu will be executed every minute between 18:30 - 18:39 on the 14th of every month.        
         """
 
+    @override
     def todo(this):
         print("Hello, World!")
         print("Now:", time.strftime("%m-%d %H:%M %A", time.localtime()))
@@ -25,6 +26,8 @@ class PRTSClearExpiredSchedule(PRTSSchedule):
         """
         Which means this schedu will be executed every hour on every day.
         """
+
+    @override
     def todo(this):
         PRTSTempStringManager.Instance.clearExipred()
 
@@ -37,13 +40,16 @@ class PRTSServerGuardian(PRTSSchedule):
         """
         Which means this schedu will be executed every minutes on every day.
         """
+
+    @override
     def todo(this):
-        # try to get any response from the server.
-        # We use the following hypothetical URLs as examples 
-        # arknights.cv/project/Preservator
-        # arknights.cv/project/Caerula_Arbor
-        # arknights.cv/project/Celestial_Fulcrum
-        print(Back.WHITE + Fore.BLACK + "   INSTANCE    MODE     CHANNEL  INFO                            STATUS            " + Style.RESET_ALL)
+        """
+        Try to get any response from the server.
+
+        Our civilization has almost lost all hope in the thousands of years of waiting.\n
+        Priestess, how I wish the `except` statement here had never been executed before.
+        """
+        print("\033[1;30;47m" + "   INSTANCE    MODE     CHANNEL  INFO                            STATUS            \033[0m")
         urls = ["Preservator", "Caerula_Arbor", "Celestial_Fulcrum"]
         for i in range(len(urls)):
             try:
