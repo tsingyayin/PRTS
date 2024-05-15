@@ -17,7 +17,7 @@ class PRTSSchedule:
     If you are using PySide or similar frameworks with event loops, 
     we generally recommend using event systems with these frameworks. 
     That is, an event is triggered from the `todo` function, 
-    and then processed by a function in the main thread.\n
+    and then processed by another function in the main thread.\n
     In this case, this schedule is just an advanced timing trigger facility, 
     rather than the main carrier of logical code.\n
     This is relatively safe, otherwise you may need to deal with some mutex and other facilities, 
@@ -27,7 +27,7 @@ class PRTSSchedule:
         pass
     def setTime(this, time:str):
         """
-        Must be in the format of "HH:MM"
+        Must be in the format of "HH:MM" (24-hour , and must be four digits, eg, 05:30)
 
         Can use `?`to represents any value, 
         this schedu will be executed every time a match is met.
@@ -44,7 +44,8 @@ class PRTSSchedule:
         # Week-input
         Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday
         # Day-input
-        1, ..., 31. Day-input allows the use of `?` to represent any value.
+        01, ..., 31. (must be two digits, eg, 05)\n
+        Day-input allows the use of `?` to represent any value.
 
         """
         this._day = day
@@ -57,7 +58,8 @@ class PRTSSchedule:
         # Month-input
         January, February, March, April, May, June, July, August, September, October, November, December
         # Month-input
-        1, ..., 12. Month-input allows the use of `?` to represent any value.
+        01, ..., 12. (must be two digits, eg, 05)\n
+        Month-input allows the use of `?` to represent any value.
         """
         this._month = month
 

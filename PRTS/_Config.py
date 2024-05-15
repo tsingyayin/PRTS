@@ -20,12 +20,20 @@ AccountManager:
                 "ID": ""
             },
         }
-    AccountLength:
-        Min: 6
-        Max: 32
-    PasswordLength:
-        Min: 6
-        Max: 16
+    AccountPolicy:
+        # Pattern : generally, recommend a-z,A-Z,0-9 and _.
+        Pattern: "^[a-zA-Z0-9_]+$"
+        MinLength: 6
+        MaxLength: 32
+    PasswordPolicy: 
+        # Pattern : generally, recommend a-z,A-Z,0-9, The symbol corresponding to 1-9 on the keyboard after shift(eg. !@#$%^&*()_+)
+        Pattern: "^[a-zA-Z0-9!@#$%^&*()_+]+$"
+        MinLength: 6
+        MaxLength: 16
+        # Storage: PLAIN, SHA256, SHA512, MD5
+        # We recommend using SHA256 or SHA512, but PLAIN is more convenient for debugging.
+        Storage: "PLAIN"
+        HashModeSaltLength: 16
     VerifyCodeLength: 6
     VerifyCodeExpireTime: 600 # seconds (10 minutes)
     TokenLength: 32
@@ -68,9 +76,6 @@ ProductKey:
         if not os.path.exists(this["DataBase"]["FileFolder"]):
             os.makedirs(this["DataBase"]["FileFolder"])
 
-    def saveConfig(this):
-        with open(this.defaultYAMLPath, "w", encoding="utf-8") as f:
-            yaml.dump(this.config, f, allow_unicode=True)
 
     def reloadConfig(this):
         this.loadConfig()

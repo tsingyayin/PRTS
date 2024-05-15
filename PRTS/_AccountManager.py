@@ -5,14 +5,16 @@ import datetime
 from ._TempStringManager import *
 from ._EmailHost import *
 from ._Config import *
+from hashlib import *
+import re
 
 class PRTSAccountMetaManager:
     """
     # AccountMetaManager
     ## Table - User Meta
-    | username | password | nickname | email | registed_time | data |
-    | -------- | -------- | -------- | ----- | ------------- | ---- |
-    | Text     | Text     | Text     | Text  | Text          | Text |
+    | username | password | pswd_mode | hash_salt | nickname | email | registed_time | data |
+    | -------- | -------- | ----------| ----------| -------- | ----- | ------------- | ---- |
+    | Text     | Text     | Text      | Text      | Text     | Text  | Text          | Text |
     * NOTICE: This website is not working in high-performance environment, so using JSON to store user data.
     """
     DataBase: Connection
@@ -26,7 +28,7 @@ class PRTSAccountMetaManager:
         this.DataBasePath = PRTSConfig.Instance["DataBase"]["FileFolder"] + "/prts_account.db"
         this.DataBase = connect(this.DataBasePath, isolation_level=None, check_same_thread=False)
         dbCursor = this.DataBase.cursor()
-        dbCursor.execute("CREATE TABLE IF NOT EXISTS usermeta (username TEXT, password TEXT, \
+        dbCursor.execute("CREATE TABLE IF NOT EXISTS usermeta (username TEXT, password TEXT, pswd_mode TEXT, hash_salt TEXT, \
 nickname TEXT, email TEXT, registed_time TEXT, data TEXT)")
 
     def checkAccountRegistered(this, username:str)->bool:
@@ -72,12 +74,30 @@ nickname TEXT, email TEXT, registed_time TEXT, data TEXT)")
         if len(password) < PRTSConfig.Instance["AccountManager"]["PasswordLength"]["Min"] or \
             len(password) > PRTSConfig.Instance["AccountManager"]["PasswordLength"]["Max"]:
                 return StateCode.PasswordInvalid
+        #check account pattern
+        if re.match(PRTSConfig.Instance["AccountManager"]["AccountPattern"], username) == None:
+            return StateCode.UsernameInvalid
+        #check password pattern
+        if re.match(PRTSConfig.Instance["AccountManager"]["PasswordPattern"], password) == None:
+            return StateCode.PasswordInvalid
         code:StateCode = this.TempStringManager.checkVerifyCode(username, verifyCode)
         if code != StateCode.Success:
             return code
+        storage_policy = PRTSConfig.Instance["AccountManager"]["PasswordPolicy"]["Storage"]
+        hash_salt = ""
+        if storage_policy == "SHA256":
+            hash_salt = this.TempStringManager.getRandomString(PRTSConfig.Instance["AccountManager"]["PasswordPolicy"]["HashModeSaltLength"])
+            password = sha256((password + hash_salt).encode()).hexdigest()
+        elif storage_policy == "SHA512":
+            hash_salt = this.TempStringManager.getRandomString(PRTSConfig.Instance["AccountManager"]["PasswordPolicy"]["HashModeSaltLength"])
+            password = sha512((password + hash_salt).encode()).hexdigest()
+        elif storage_policy == "MD5":
+            hash_salt = this.TempStringManager.getRandomString(PRTSConfig.Instance["AccountManager"]["PasswordPolicy"]["HashModeSaltLength"])
+            password = md5((password + hash_salt).encode()).hexdigest()
         dbCursor = this.DataBase.cursor()
         template = PRTSConfig.Instance["AccountManager"]["TemplateMetaJson"]
-        dbCursor.execute("INSERT INTO usermeta VALUES (?, ?, ?, ?, ?, ?)", (username, password, nickname, email, str(time.time()), template))
+        dbCursor.execute("INSERT INTO usermeta VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (username, password, storage_policy, hash_salt,
+                                                                            nickname, email, str(time.time()), template))
         return StateCode.Success
 
     def login(this, username:str, password:str)->Tuple[StateCode, str]:
@@ -85,9 +105,19 @@ nickname TEXT, email TEXT, registed_time TEXT, data TEXT)")
         Login an account.
         """
         dbCursor = this.DataBase.cursor()
-        dbCursor.execute("SELECT password FROM usermeta WHERE username=?", (username,))
+        dbCursor.execute("SELECT password, pswd_mode, hash_salt FROM usermeta WHERE username=?", (username,))
         result = dbCursor.fetchone()
-        if result == None or result[0] != password:
+        if result == None:
+            return StateCode.UsernameOrPasswordNotMatch, ""
+        storage_policy = result[1]
+        hash_salt = result[2]
+        if storage_policy == "SHA256":
+            password = sha256((password + hash_salt).encode()).hexdigest()
+        elif storage_policy == "SHA512":
+            password = sha512((password + hash_salt).encode()).hexdigest()
+        elif storage_policy == "MD5":
+            password = md5((password + hash_salt).encode()).hexdigest()
+        if password != result[0]:
             return StateCode.UsernameOrPasswordNotMatch, ""
         token:str = this.TempStringManager.getToken(username)
         return StateCode.Success, token
